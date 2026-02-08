@@ -13,6 +13,10 @@ services:
           property: connectionString
       - key: ARTIFACT_DIR
         value: /tmp/artifacts
+      - key: SIRENE_API_KEY
+        sync: false
+      - key: SIRENE_BASE_URL
+        value: https://api.insee.fr/api-sirene/3.11
 
 databases:
   - name: ownership-db

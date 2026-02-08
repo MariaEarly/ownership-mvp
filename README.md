@@ -38,6 +38,11 @@ docker compose up --build
 - This is an MVP scaffold. Data extraction from Sirene/BODACC is not implemented yet.
 - Confidence scoring is included but uses placeholder logic until real sources are wired.
 
+## Sirene integration (identity + siège address)
+This MVP can call the INSEE Sirene API if you provide a token:
+- Set `SIRENE_API_KEY` (Bearer token from INSEE API portal).
+- Optional: `SIRENE_BASE_URL` (default: `https://api.insee.fr/api-sirene/3.11`).
+
 ## Deploy on Render (free)
 1. Create a GitHub repo named `ownership-mvp` under your account.
 2. Push this project to that repo.
