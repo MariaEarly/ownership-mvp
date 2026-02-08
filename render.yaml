@@ -25,6 +25,8 @@ services:
         value: https://api.insee.fr/token
       - key: SIRENE_SCOPE
         sync: false
+      - key: BODACC_BASE_URL
+        value: https://bodacc-datadila.opendatasoft.com/api/records/1.0/search/
       - key: SIRENE_BASE_URL
         value: https://api.insee.fr/api-sirene/3.11
 

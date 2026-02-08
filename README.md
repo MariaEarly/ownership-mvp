@@ -47,6 +47,11 @@ This MVP can call the INSEE Sirene API if you provide credentials:
 - Optional: `SIRENE_SCOPE` if your INSEE account requires it.
 - Optional: `SIRENE_BASE_URL` (default: `https://api.insee.fr/api-sirene/3.11`).
 
+## BODACC integration (events)
+This MVP pulls recent BODACC events from the open dataset:
+- `BODACC_BASE_URL` default: `https://bodacc-datadila.opendatasoft.com/api/records/1.0/search/`
+- No API key required for the public dataset
+
 ## Deploy on Render (free)
 1. Create a GitHub repo named `ownership-mvp` under your account.
 2. Push this project to that repo.

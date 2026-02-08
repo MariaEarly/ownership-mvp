@@ -114,6 +114,60 @@ def _format_address(addr: dict) -> str:
     return " ".join([p for p in parts if p])
 
 
+def _get_first(fields: dict, keys: list[str]) -> str | None:
+    for key in keys:
+        value = fields.get(key)
+        if value:
+            return value
+    return None
+
+
+def _fetch_bodacc_events(siren: str, limit: int = 5) -> list[dict]:
+    base = os.getenv(
+        "BODACC_BASE_URL",
+        "https://bodacc-datadila.opendatasoft.com/api/records/1.0/search/",
+    )
+    params = {
+        "dataset": "annonces-commerciales",
+        "rows": str(limit),
+        "sort": "-dateparution",
+        "q": siren,
+    }
+
+    try:
+        resp = requests.get(base, params=params, timeout=20)
+        if resp.status_code != 200:
+            logger.warning(
+                "BODACC request failed: %s -> %s %s",
+                resp.url,
+                resp.status_code,
+                resp.text[:200],
+            )
+            return []
+
+        data = resp.json()
+        records = data.get("records", [])
+        events = []
+        for rec in records:
+            fields = rec.get("fields", {})
+            events.append(
+                {
+                    "date": _get_first(fields, ["dateparution", "date_parution"]),
+                    "type": _get_first(fields, ["typeannonce", "type_annonce"]),
+                    "categorie": _get_first(
+                        fields, ["categorieannonce", "categorie_annonce"]
+                    ),
+                    "numero": _get_first(fields, ["numeroannonce", "numero_annonce"]),
+                    "tribunal": _get_first(fields, ["tribunal"]),
+                    "ville": _get_first(fields, ["ville", "commune"]),
+                }
+            )
+        return events
+    except Exception as exc:
+        logger.warning("BODACC request error: %s", exc)
+        return []
+
+
 def _fetch_sirene_identity(siren: str) -> dict:
     data = _sirene_get(f"/siren/{siren}", params={"date": "2999-12-31"})
     if not data:
@@ -147,17 +201,19 @@ def _fetch_sirene_identity(siren: str) -> dict:
     }
 
 
-def _render_graph_html(job_id: str, nodes: list[dict], edges: list[dict]) -> Path:
+def _render_graph_html(
+    job_id: str, nodes: list[dict], edges: list[dict], meta: dict
+) -> Path:
     env = Environment(loader=FileSystemLoader("/app/templates"))
     template = env.get_template("graph.html")
 
-    html = template.render(job_id=job_id, nodes=nodes, edges=edges)
+    html = template.render(job_id=job_id, nodes=nodes, edges=edges, meta=meta)
     out_path = _artifact_dir() / f"graph_{job_id}.html"
     out_path.write_text(html, encoding="utf-8")
     return out_path
 
 
-def _render_pdf(job_id: str, siren: str, summary: dict) -> Path:
+def _render_pdf(job_id: str, siren: str, summary: dict, events: list[dict]) -> Path:
     out_path = _artifact_dir() / f"report_{job_id}.pdf"
     c = canvas.Canvas(str(out_path), pagesize=A4)
     width, height = A4
@@ -176,16 +232,50 @@ def _render_pdf(job_id: str, siren: str, summary: dict) -> Path:
 
     y -= 40
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y, "Summary")
+    c.drawString(50, y, "Company Profile")
 
     y -= 20
     c.setFont("Helvetica", 10)
-    for key, value in summary.items():
-        c.drawString(50, y, f"- {key}: {value}")
+    for key in ["Company name", "Status", "Address"]:
+        c.drawString(50, y, f"- {key}: {summary.get(key)}")
         y -= 14
-        if y < 80:
-            c.showPage()
-            y = height - 60
+
+    y -= 10
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "Ownership Summary")
+
+    y -= 20
+    c.setFont("Helvetica", 10)
+    for key in ["Direct shareholders found", "Missing data", "Confidence score"]:
+        c.drawString(50, y, f"- {key}: {summary.get(key)}")
+        y -= 14
+
+    y -= 10
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "BODACC Events (latest)")
+
+    y -= 20
+    c.setFont("Helvetica", 10)
+    if events:
+        for e in events:
+            line = f"- {e.get('date') or 'N/A'} | {e.get('type') or 'Event'} | {e.get('categorie') or ''}"
+            c.drawString(50, y, line)
+            y -= 14
+            if y < 80:
+                c.showPage()
+                y = height - 60
+    else:
+        c.drawString(50, y, "- No events found")
+        y -= 14
+
+    y -= 10
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "Sources & Limits")
+
+    y -= 20
+    c.setFont("Helvetica", 10)
+    c.drawString(50, y, f"- {summary.get('Sources')}")
+    y -= 14
 
     c.showPage()
     c.save()
@@ -204,11 +294,19 @@ def build_ownership(job_id: str) -> None:
         session.commit()
 
         identity = _fetch_sirene_identity(job.siren)
+        bodacc_events = _fetch_bodacc_events(job.siren, limit=5)
         company_name = identity.get("name") or f"Company {job.siren}"
+        company_status = identity.get("status") or "Unknown"
+        company_address = identity.get("address") or "Unknown"
 
         # Placeholder data for ownership until sources are wired
         nodes = [
-            {"id": job.siren, "label": company_name, "group": "target"},
+            {
+                "id": job.siren,
+                "label": company_name,
+                "group": "target",
+                "title": f"Status: {company_status}<br/>Address: {company_address}",
+            },
             {"id": "UNKNOWN", "label": "Actionnaire non public", "group": "unknown"},
         ]
         edges = [
@@ -218,17 +316,29 @@ def build_ownership(job_id: str) -> None:
         confidence = _confidence_score(has_pct=False, is_recent=False, is_primary=False, inferred=True)
 
         summary = {
-            "Company name": identity.get("name") or "Unknown",
-            "Address": identity.get("address") or "Unknown",
-            "Status": identity.get("status") or "Unknown",
+            "Company name": company_name,
+            "Address": company_address,
+            "Status": company_status,
             "Direct shareholders found": "0",
             "Missing data": "Yes",
             "Confidence score": str(confidence),
-            "Sources": "Sirene (identity + siège address); ownership not public",
+            "BODACC events (latest)": str(len(bodacc_events)),
+            "Sources": "Sirene (identity + siège address), BODACC (events); ownership not public",
         }
 
-        graph_path = _render_graph_html(job.id, nodes, edges)
-        pdf_path = _render_pdf(job.id, job.siren, summary)
+        graph_path = _render_graph_html(
+            job.id,
+            nodes,
+            edges,
+            meta={
+                "siren": job.siren,
+                "name": company_name,
+                "status": company_status,
+                "address": company_address,
+                "bodacc_events": bodacc_events,
+            },
+        )
+        pdf_path = _render_pdf(job.id, job.siren, summary, bodacc_events)
 
         session.add(Artifact(job_id=job.id, kind="graph", path=str(graph_path)))
         session.add(Artifact(job_id=job.id, kind="pdf", path=str(pdf_path)))
@@ -240,6 +350,7 @@ def build_ownership(job_id: str) -> None:
             "nodes": nodes,
             "edges": edges,
             "summary": summary,
+            "bodacc_events": bodacc_events,
         }
         job.updated_at = datetime.utcnow()
         session.commit()
