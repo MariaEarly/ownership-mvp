@@ -73,9 +73,8 @@ def _sirene_headers() -> dict:
     token = _sirene_access_token()
     if not token:
         return {}
-    # INSEE docs say to pass the access key in Authorization header.
-    # Use the raw key for API-key plans; OAuth token also works here.
-    return {"Authorization": token}
+    # INSEE API expects a Bearer token in the Authorization header.
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _sirene_get(path: str, params: dict | None = None) -> dict | None:
