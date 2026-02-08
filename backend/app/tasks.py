@@ -34,9 +34,10 @@ _TOKEN_CACHE = {"access_token": None, "expires_at": 0}
 
 
 def _sirene_access_token() -> str | None:
-    static_token = os.getenv("SIRENE_ACCESS_TOKEN")
-    if static_token:
-        return static_token
+    # Prefer API key if provided (plan "api key" in portal).
+    api_key = os.getenv("SIRENE_API_KEY")
+    if api_key:
+        return api_key
 
     client_id = os.getenv("SIRENE_CLIENT_ID")
     client_secret = os.getenv("SIRENE_CLIENT_SECRET")
@@ -72,7 +73,9 @@ def _sirene_headers() -> dict:
     token = _sirene_access_token()
     if not token:
         return {}
-    return {"Authorization": f"Bearer {token}"}
+    # INSEE docs say to pass the access key in Authorization header.
+    # Use the raw key for API-key plans; OAuth token also works here.
+    return {"Authorization": token}
 
 
 def _sirene_get(path: str, params: dict | None = None) -> dict | None:

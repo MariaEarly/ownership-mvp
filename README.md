@@ -40,8 +40,9 @@ docker compose up --build
 
 ## Sirene integration (identity + siège address)
 This MVP can call the INSEE Sirene API if you provide credentials:
-- Preferred: set `SIRENE_CLIENT_ID` and `SIRENE_CLIENT_SECRET` so the app can fetch a Bearer token.
-- Alternative: set `SIRENE_ACCESS_TOKEN` (pre-generated Bearer token).
+- Preferred for API-key plans: set `SIRENE_API_KEY` (portal key).
+- Alternative: set `SIRENE_CLIENT_ID` and `SIRENE_CLIENT_SECRET` so the app can fetch a token.
+- Alternative: set `SIRENE_ACCESS_TOKEN` (pre-generated token).
 - Optional: `SIRENE_TOKEN_URL` (default: `https://api.insee.fr/token`).
 - Optional: `SIRENE_SCOPE` if your INSEE account requires it.
 - Optional: `SIRENE_BASE_URL` (default: `https://api.insee.fr/api-sirene/3.11`).
