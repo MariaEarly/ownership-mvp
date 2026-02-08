@@ -13,7 +13,15 @@ services:
           property: connectionString
       - key: ARTIFACT_DIR
         value: /tmp/artifacts
-      - key: SIRENE_API_KEY
+      - key: SIRENE_ACCESS_TOKEN
+        sync: false
+      - key: SIRENE_CLIENT_ID
+        sync: false
+      - key: SIRENE_CLIENT_SECRET
+        sync: false
+      - key: SIRENE_TOKEN_URL
+        value: https://api.insee.fr/token
+      - key: SIRENE_SCOPE
         sync: false
       - key: SIRENE_BASE_URL
         value: https://api.insee.fr/api-sirene/3.11

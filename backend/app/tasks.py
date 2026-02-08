@@ -4,6 +4,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+import time
 import requests
 from app.db import SessionLocal
 from app.models import Job, Artifact
@@ -29,11 +30,49 @@ def _confidence_score(has_pct: bool, is_recent: bool, is_primary: bool, inferred
     return score
 
 
+_TOKEN_CACHE = {"access_token": None, "expires_at": 0}
+
+
+def _sirene_access_token() -> str | None:
+    static_token = os.getenv("SIRENE_ACCESS_TOKEN")
+    if static_token:
+        return static_token
+
+    client_id = os.getenv("SIRENE_CLIENT_ID")
+    client_secret = os.getenv("SIRENE_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+
+    now = int(time.time())
+    if _TOKEN_CACHE["access_token"] and now < int(_TOKEN_CACHE["expires_at"]) - 30:
+        return _TOKEN_CACHE["access_token"]
+
+    token_url = os.getenv("SIRENE_TOKEN_URL", "https://api.insee.fr/token")
+    data = {"grant_type": "client_credentials"}
+    scope = os.getenv("SIRENE_SCOPE")
+    if scope:
+        data["scope"] = scope
+
+    resp = requests.post(token_url, data=data, auth=(client_id, client_secret), timeout=15)
+    if resp.status_code != 200:
+        return None
+
+    payload = resp.json()
+    access_token = payload.get("access_token")
+    expires_in = payload.get("expires_in", 3600)
+    if not access_token:
+        return None
+
+    _TOKEN_CACHE["access_token"] = access_token
+    _TOKEN_CACHE["expires_at"] = now + int(expires_in)
+    return access_token
+
+
 def _sirene_headers() -> dict:
-    api_key = os.getenv("SIRENE_API_KEY")
-    if not api_key:
+    token = _sirene_access_token()
+    if not token:
         return {}
-    return {"Authorization": f"Bearer {api_key}"}
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _sirene_get(path: str, params: dict | None = None) -> dict | None:
