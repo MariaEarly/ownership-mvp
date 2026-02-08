@@ -45,7 +45,7 @@ docker compose up --build
 4. Render will create:
    - Web service (API)
    - Postgres
-   - Persistent disk for artifacts
+   - Artifacts stored in `/tmp` (ephemeral on free plan)
 
 After deploy, test:
 - `POST https://<api-url>/ownership`

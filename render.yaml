@@ -2,6 +2,7 @@ services:
   - type: web
     name: ownership-api
     runtime: docker
+    plan: free
     repo: https://github.com/MariaEarly/ownership-mvp
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
@@ -11,11 +12,7 @@ services:
           name: ownership-db
           property: connectionString
       - key: ARTIFACT_DIR
-        value: /data
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
+        value: /tmp/artifacts
 
 databases:
   - name: ownership-db
