@@ -5,6 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import time
+import logging
 import requests
 from app.db import SessionLocal
 from app.models import Job, Artifact
@@ -37,6 +38,7 @@ def _sirene_access_token() -> str | None:
     # Prefer API key if provided (plan "api key" in portal).
     api_key = os.getenv("SIRENE_API_KEY")
     if api_key:
+        logger.info("Sirene auth: using API key")
         return api_key
 
     client_id = os.getenv("SIRENE_CLIENT_ID")
@@ -56,6 +58,7 @@ def _sirene_access_token() -> str | None:
 
     resp = requests.post(token_url, data=data, auth=(client_id, client_secret), timeout=15)
     if resp.status_code != 200:
+        logger.warning("Sirene token fetch failed: %s %s", resp.status_code, resp.text[:200])
         return None
 
     payload = resp.json()
@@ -85,6 +88,7 @@ def _sirene_get(path: str, params: dict | None = None) -> dict | None:
         return None
     resp = requests.get(url, headers=headers, params=params, timeout=15)
     if resp.status_code != 200:
+        logger.warning("Sirene request failed: %s %s -> %s %s", url, params, resp.status_code, resp.text[:200])
         return None
     return resp.json()
 
@@ -241,3 +245,6 @@ def build_ownership(job_id: str) -> None:
             session.commit()
     finally:
         session.close()
+logger = logging.getLogger("ownership")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
