@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mvp
+      POSTGRES_PASSWORD: mvp
+      POSTGRES_DB: ownership
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://mvp:mvp@db:5432/ownership
+      REDIS_URL: redis://redis:6379/0
+      ARTIFACT_DIR: /data
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build:
+      context: ./backend
+    command: ["python", "worker.py"]
+    environment:
+      DATABASE_URL: postgresql://mvp:mvp@db:5432/ownership
+      REDIS_URL: redis://redis:6379/0
+      ARTIFACT_DIR: /data
+    volumes:
+      - ./data:/data
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  pgdata:

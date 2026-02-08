@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: ownership-api
+    env: docker
+    repo: https://github.com/MariaEarly/ownership-mvp
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ownership-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: ownership-redis
+          type: redis
+          property: connectionString
+      - key: ARTIFACT_DIR
+        value: /data
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+  - type: worker
+    name: ownership-worker
+    env: docker
+    repo: https://github.com/MariaEarly/ownership-mvp
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    startCommand: python worker.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ownership-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: ownership-redis
+          type: redis
+          property: connectionString
+      - key: ARTIFACT_DIR
+        value: /data
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+  - type: redis
+    name: ownership-redis
+    ipAllowList: []
+    plan: free
+
+  - type: postgres
+    name: ownership-db
+    plan: free
+    ipAllowList: []
