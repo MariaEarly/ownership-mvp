@@ -76,7 +76,15 @@ def _sirene_headers() -> dict:
     token = _sirene_access_token()
     if not token:
         return {}
-    # INSEE API expects a Bearer token in the Authorization header.
+
+    # If an API key is set, send both headers to match legacy and portal variants.
+    if os.getenv("SIRENE_API_KEY"):
+        return {
+            "Authorization": token,
+            "X-INSEE-Api-Key-Integration": token,
+        }
+
+    # Otherwise assume OAuth token.
     return {"Authorization": f"Bearer {token}"}
 
 
