@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from redis import Redis
 from rq import Queue
@@ -51,11 +52,44 @@ def create_ownership(req: OwnershipRequest):
 
 
 @app.get("/ownership/{job_id}")
-def get_ownership(job_id: str):
+def get_ownership(job_id: str, request: Request):
     session = SessionLocal()
     try:
         job = session.query(Job).filter(Job.id == job_id).first()
         if not job:
+            # Fallback: if artifacts exist on disk, return them even if DB row is missing.
+            artifacts = []
+            base_url = str(request.base_url).rstrip("/")
+            artifact_dir = os.getenv("ARTIFACT_DIR", "/tmp/artifacts")
+            pdf_path = os.path.join(artifact_dir, f"report_{job_id}.pdf")
+            graph_path = os.path.join(artifact_dir, f"graph_{job_id}.html")
+            if os.path.exists(pdf_path):
+                artifacts.append(
+                    {
+                        "kind": "pdf",
+                        "path": pdf_path,
+                        "url": f"{base_url}/artifact/{job_id}/pdf",
+                    }
+                )
+            if os.path.exists(graph_path):
+                artifacts.append(
+                    {
+                        "kind": "graph",
+                        "path": graph_path,
+                        "url": f"{base_url}/artifact/{job_id}/graph",
+                    }
+                )
+            if artifacts:
+                return {
+                    "job_id": job_id,
+                    "siren": None,
+                    "status": "done",
+                    "created_at": None,
+                    "updated_at": None,
+                    "error": None,
+                    "result": None,
+                    "artifacts": artifacts,
+                }
             raise HTTPException(status_code=404, detail="job not found")
 
         artifacts = session.query(Artifact).filter(Artifact.job_id == job.id).all()
@@ -79,3 +113,22 @@ def get_ownership(job_id: str):
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
+
+
+@app.get("/artifact/{job_id}/{kind}")
+def get_artifact(job_id: str, kind: str):
+    if kind not in {"pdf", "graph"}:
+        raise HTTPException(status_code=400, detail="invalid artifact kind")
+
+    artifact_dir = os.getenv("ARTIFACT_DIR", "/tmp/artifacts")
+    if kind == "pdf":
+        path = os.path.join(artifact_dir, f"report_{job_id}.pdf")
+        media_type = "application/pdf"
+    else:
+        path = os.path.join(artifact_dir, f"graph_{job_id}.html")
+        media_type = "text/html"
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="artifact not found")
+
+    return FileResponse(path, media_type=media_type)
