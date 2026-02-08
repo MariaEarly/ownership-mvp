@@ -193,6 +193,20 @@ def _fetch_sirene_identity(siren: str) -> dict:
         addr = etab.get("adresseEtablissement", {})
         address = _format_address(addr)
 
+    # Fallback: search for the siège établissement if address is still empty.
+    if not address:
+        search = _sirene_get(
+            "/siret",
+            params={
+                "q": f"siren:{siren} AND etablissementSiege:true",
+                "nombre": "1",
+            },
+        )
+        etablissements = (search or {}).get("etablissements", [])
+        if etablissements:
+            addr = etablissements[0].get("adresseEtablissement", {})
+            address = _format_address(addr)
+
     return {
         "name": name,
         "status": status,
