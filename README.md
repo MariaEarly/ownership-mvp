@@ -44,9 +44,7 @@ docker compose up --build
 3. In Render, use **Blueprint** and point to `render.yaml`.
 4. Render will create:
    - Web service (API)
-   - Worker
    - Postgres
-   - Redis
    - Persistent disk for artifacts
 
 After deploy, test:

@@ -21,8 +21,10 @@ def on_startup() -> None:
     init_db()
 
 
-def _queue() -> Queue:
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+def _queue() -> Queue | None:
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        return None
     redis_conn = Redis.from_url(redis_url)
     return Queue("ownership", connection=redis_conn)
 
@@ -36,8 +38,13 @@ def create_ownership(req: OwnershipRequest):
         session.commit()
 
         q = _queue()
-        q.enqueue(build_ownership, job.id)
+        if q:
+            q.enqueue(build_ownership, job.id)
+            return {"job_id": job.id, "status": job.status}
 
+        # Synchronous fallback for environments without Redis (e.g., Render free tier).
+        build_ownership(job.id)
+        session.refresh(job)
         return {"job_id": job.id, "status": job.status}
     finally:
         session.close()
